@@ -3,17 +3,10 @@ package internal
 import (
 	"fmt"
 	"net"
+	"regexp"
 	"strconv"
 	"strings"
 )
-
-type ServerPart struct {
-	conn net.Conn
-}
-
-func NewServerPart(conn net.Conn) *ServerPart {
-	return &ServerPart{conn: conn}
-}
 
 func ParseHost(headers []byte) string {
 	i := strings.LastIndex(string(headers), "Host:")
@@ -21,6 +14,25 @@ func ParseHost(headers []byte) string {
 	j := strings.Index(string(headers)[i:], "\r")
 	host := string(headers)[i : i+j]
 	return host
+}
+
+func ParseURL(headers []byte) string {
+	i := strings.LastIndex(string(headers), "http")
+	j := strings.LastIndex(string(headers), "HTTP/")
+	if i == -1 {
+		return ""
+	}
+	host := string(headers)[i : j-1]
+	return host
+}
+
+func ParsePort(url string) string {
+	re := regexp.MustCompile(`(?m):\d+`)
+	res := re.FindAllString(url, -1)
+	if res == nil {
+		return ""
+	}
+	return res[0]
 }
 
 func ParseLength(headers []byte) int {
@@ -32,15 +44,17 @@ func ParseLength(headers []byte) int {
 	return l
 }
 
-func (sp *ServerPart) SrvGetReq() *Req {
-	req := &Req{}
+func GetRequest(conn net.Conn) *Req {
+	req := &Req{
+		Port: ":80",
+	}
 	fullMsg := make([]byte, 0, 10)
 	var bmessage []byte
 	var bbody []byte
 
 	for {
 		bytes := make([]byte, 10, 10)
-		n, err := sp.conn.Read(bytes)
+		n, err := conn.Read(bytes)
 		if err != nil || n == 0 {
 			fmt.Print(err)
 			fmt.Print(n)
@@ -62,8 +76,11 @@ func (sp *ServerPart) SrvGetReq() *Req {
 
 	fmt.Print("start receiving body\n")
 	for {
+		if l == 0 {
+			break
+		}
 		bytes := make([]byte, l, l)
-		n, err := sp.conn.Read(bytes)
+		n, err := conn.Read(bytes)
 		if err != nil || n == 0 {
 			fmt.Print(err)
 			fmt.Print(n)
@@ -84,6 +101,28 @@ func (sp *ServerPart) SrvGetReq() *Req {
 	return req
 }
 
-func (sp *ServerPart) SrvSndRsp(answer []byte) {
-	sp.conn.Write(answer)
+func ReturnResponse(conn net.Conn, answer []byte) {
+	size := len(answer)
+	sentBytes := 0
+	for sentBytes < size {
+		n, err := conn.Write(answer)
+		if err != nil {
+			fmt.Println("some error in sending data", n)
+		}
+		sentBytes += n
+	}
+}
+
+func ProxyRequest(conn net.Conn, msg []byte) []byte {
+	size := len(msg)
+	sentBytes := 0
+	for sentBytes < size {
+		n, err := conn.Write(msg)
+		if err != nil {
+			fmt.Println("some error in sending data", n)
+		}
+		sentBytes += n
+	}
+	answer := GetRequest(conn)
+	return answer.FullMsg
 }

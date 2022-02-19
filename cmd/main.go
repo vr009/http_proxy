@@ -1,25 +1,31 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"proxy/internal"
 )
 
 func main() {
-	fmt.Println("Launching server...")
 
-	// Устанавливаем прослушивание порта
 	ln, _ := net.Listen("tcp", ":8080")
-	// Открываем порт
 	conn, _ := ln.Accept()
+	defer conn.Close()
 
-	serverPart := internal.NewServerPart(conn)
-	req := serverPart.SrvGetReq()
+	/* getting request from client */
+	req := internal.GetRequest(conn)
 
-	connTo, _ := net.Dial("tcp", req.Host)
-	clientPart := internal.NewClientPart(connTo)
-	answer := clientPart.ClinetWork(req.FullMsg)
+	if internal.ParsePort(req.Host) != "" {
+		req.Port = ""
+	}
+	connTo, err := net.Dial("tcp", req.Host+req.Port)
+	if err != nil {
+		panic(err)
+	}
 
-	serverPart.SrvSndRsp(answer)
+	/* proxying the message from client to dest */
+	answer := internal.ProxyRequest(connTo, req.FullMsg)
+
+	/* returning response */
+	internal.ReturnResponse(conn, answer)
+	connTo.Close()
 }
