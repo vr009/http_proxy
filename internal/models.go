@@ -2,6 +2,7 @@ package internal
 
 type Req struct {
 	FullMsg []byte
+	Secure  bool
 	Host    string
 	Port    string
 }

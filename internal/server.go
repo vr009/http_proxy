@@ -6,6 +6,7 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func ParseHost(headers []byte) string {
@@ -14,6 +15,14 @@ func ParseHost(headers []byte) string {
 	j := strings.Index(string(headers)[i:], "\r")
 	host := string(headers)[i : i+j]
 	return host
+}
+
+func ParseSecure(headers []byte) bool {
+	i := strings.LastIndex(string(headers), "CONNECT")
+	if i == -1 {
+		return false
+	}
+	return true
 }
 
 func ParseURL(headers []byte) string {
@@ -71,6 +80,8 @@ func GetRequest(conn net.Conn) *Req {
 
 	tail := len(bbody)
 
+	req.Secure = ParseSecure(bmessage)
+
 	l := ParseLength(bmessage)
 	host := ParseHost(bmessage)
 
@@ -125,4 +136,21 @@ func ProxyRequest(conn net.Conn, msg []byte) []byte {
 	}
 	answer := GetRequest(conn)
 	return answer.FullMsg
+}
+
+func TlsReadMessage(conn net.Conn) ([]byte, error) {
+	msg := []byte("")
+	for {
+		bytes := make([]byte, 10, 10)
+		conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+		n, err := conn.Read(bytes)
+		if n == 0 {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		msg = append(msg, bytes...)
+	}
+	return msg, nil
 }
