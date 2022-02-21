@@ -1,11 +1,13 @@
 package internal
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func ParseHost(headers []byte) string {
@@ -14,6 +16,14 @@ func ParseHost(headers []byte) string {
 	j := strings.Index(string(headers)[i:], "\r")
 	host := string(headers)[i : i+j]
 	return host
+}
+
+func ParseSecure(headers []byte) bool {
+	i := strings.LastIndex(string(headers), "CONNECT")
+	if i == -1 {
+		return false
+	}
+	return true
 }
 
 func ParseURL(headers []byte) string {
@@ -71,8 +81,26 @@ func GetRequest(conn net.Conn) *Req {
 
 	tail := len(bbody)
 
+	req.Secure = ParseSecure(bmessage)
+
 	l := ParseLength(bmessage)
 	host := ParseHost(bmessage)
+
+	if strings.LastIndex(string(bmessage), "Proxy-Connection: Keep-Alive\r\n") != -1 {
+		bmessage = bytes.Replace(bmessage, []byte("Proxy-Connection: Keep-Alive\r\n"), []byte(""), -1)
+	}
+
+	if strings.LastIndex(string(bmessage), "http://") != -1 {
+		i := strings.LastIndex(string(bmessage), "http://")
+		j := i + len("http://")
+		for string(bmessage)[j] != '/' {
+			j++
+		}
+		bmessage = bytes.Replace(bmessage, bmessage[i:j], []byte(""), 1)
+
+		st := string(bmessage)
+		st += ""
+	}
 
 	fmt.Print("start receiving body\n")
 	for {
@@ -125,4 +153,34 @@ func ProxyRequest(conn net.Conn, msg []byte) []byte {
 	}
 	answer := GetRequest(conn)
 	return answer.FullMsg
+}
+
+func TlsReadMessage(conn net.Conn) ([]byte, error) {
+	msg := []byte("")
+	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+	for {
+		bytes := make([]byte, 1024, 1024)
+		n, err := conn.Read(bytes)
+		if n == 0 {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		msg = append(msg, bytes...)
+	}
+	msg = append(msg, []byte("\r\n\r\n")...)
+	return msg, nil
+}
+
+func TlsSendMessage(conn net.Conn, msg []byte) error {
+	bytesSent := 0
+	for bytesSent < len(msg) {
+		n, err := conn.Write(msg)
+		if err != nil {
+			return err
+		}
+		bytesSent += n
+	}
+	return nil
 }
