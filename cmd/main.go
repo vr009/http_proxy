@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/tls"
 	"log"
 	"math/rand"
@@ -9,6 +10,7 @@ import (
 	"path/filepath"
 	"proxy/internal"
 	"strconv"
+	"strings"
 )
 
 func main() {
@@ -49,9 +51,6 @@ func main() {
 				panic(err)
 			}
 
-			m := string(msg)
-			m += ""
-
 			tlsconnTo, err := tls.Dial("tcp", req.Host+":443", tlsCfg)
 			if err != nil {
 				panic(err)
@@ -66,11 +65,11 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
-			ss := string(answer)
-			ss += ""
-			log.Println("\n=========================")
-			log.Println(ss)
-			log.Println("\n=========================")
+
+			/* To avoid the issue described in this ticket: https://github.com/curl/curl/issues/6760 */
+			if strings.LastIndex(string(answer), "Transfer-Encoding: chunked") != -1 {
+				answer = bytes.Replace(answer, []byte("Transfer-Encoding: chunked"), []byte(""), -1)
+			}
 
 			err = internal.TlsSendMessage(tlssrv, answer)
 			if err != nil {
