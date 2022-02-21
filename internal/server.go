@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"bytes"
 	"fmt"
 	"net"
 	"regexp"
@@ -84,6 +85,22 @@ func GetRequest(conn net.Conn) *Req {
 
 	l := ParseLength(bmessage)
 	host := ParseHost(bmessage)
+
+	if strings.LastIndex(string(bmessage), "Proxy-Connection: Keep-Alive\r\n") != -1 {
+		bmessage = bytes.Replace(bmessage, []byte("Proxy-Connection: Keep-Alive\r\n"), []byte(""), -1)
+	}
+
+	if strings.LastIndex(string(bmessage), "http://") != -1 {
+		i := strings.LastIndex(string(bmessage), "http://")
+		j := i + len("http://")
+		for string(bmessage)[j] != '/' {
+			j++
+		}
+		bmessage = bytes.Replace(bmessage, bmessage[i:j], []byte(""), 1)
+
+		st := string(bmessage)
+		st += ""
+	}
 
 	fmt.Print("start receiving body\n")
 	for {
