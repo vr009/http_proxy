@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"proxy/internal"
 	"strconv"
-	"time"
 )
 
 func main() {
@@ -23,11 +22,14 @@ func main() {
 
 		/* getting request from client */
 		req := internal.GetRequest(conn)
+		ss := string(req.FullMsg)
+		ss += ""
 
 		port := internal.ParsePort(req.Host)
 		if req.Secure {
 			req.Host = req.Host[:len(req.Host)-4]
 			conn.Write([]byte("HTTP/1.0 200 Connection established\r\nProxy-agent: Golang-Proxy\r\n\r\n"))
+
 			path, _ := filepath.Abs("")
 			err = exec.Command(path+"/gen_cert.sh", req.Host, strconv.Itoa(rand.Int())).Run()
 			if err != nil {
@@ -38,57 +40,45 @@ func main() {
 			if err != nil {
 				panic(err)
 			}
+
 			tlsCfg := &tls.Config{Certificates: []tls.Certificate{cert}}
 			tlssrv := tls.Server(conn, tlsCfg)
+
 			msg, err := internal.TlsReadMessage(tlssrv)
 			if err != nil {
 				panic(err)
 			}
-			str := string(msg)
-			str = str + ""
-			//clientCgg := tls.LoadX509KeyPair("","")
+
+			m := string(msg)
+			m += ""
+
 			tlsconnTo, err := tls.Dial("tcp", req.Host+":443", tlsCfg)
 			if err != nil {
 				panic(err)
 			}
 
-			bytesSent := 0
-			for bytesSent < len(msg) {
-				n, err := tlsconnTo.Write(msg)
-				if err != nil {
-					panic(err)
-				}
-				bytesSent += n
+			err = internal.TlsSendMessage(tlsconnTo, msg)
+			if err != nil {
+				panic(err)
 			}
 
-			answer := []byte("")
-
-			tlsconnTo.SetReadDeadline(time.Now().Add(time.Second * 5))
-			for {
-				bytesRec := make([]byte, 512, 512)
-				n, err := tlsconnTo.Read(bytesRec)
-				if n == 0 {
-					break
-				}
-				if err != nil {
-					panic(err)
-				}
-				answer = append(answer, bytesRec...)
+			answer, err := internal.TlsReadMessage(tlsconnTo)
+			if err != nil {
+				panic(err)
 			}
+			ss := string(answer)
+			ss += ""
+			log.Println("\n=========================")
+			log.Println(ss)
+			log.Println("\n=========================")
 
-			answStr := string(answer)
-			answStr = answStr + ""
-
-			bytesSent = 0
-			for bytesSent < len(answer) {
-				n, err := tlssrv.Write(answer)
-				if err != nil {
-					panic(err)
-				}
-				bytesSent += n
+			err = internal.TlsSendMessage(tlssrv, answer)
+			if err != nil {
+				panic(err)
 			}
 
 			tlsconnTo.Close()
+			tlssrv.Close()
 
 		} else {
 			if port != "" {
