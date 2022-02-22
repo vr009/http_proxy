@@ -157,7 +157,7 @@ func ProxyRequest(conn net.Conn, msg []byte) []byte {
 
 func TlsReadMessage(conn net.Conn) ([]byte, error) {
 	msg := []byte("")
-	conn.SetReadDeadline(time.Now().Add(time.Second * 5))
+	conn.SetReadDeadline(time.Now().Add(time.Second * 1))
 	for {
 		bytes := make([]byte, 1024, 1024)
 		n, err := conn.Read(bytes)
