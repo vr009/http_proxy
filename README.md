@@ -7,4 +7,4 @@ This is a simple http_proxy server with minimal tls support.
 
 This script generates the new CA, which is needed to be installed to other trusted CA of host system.
 
-If you don't want to have CA as a trusted one you can use curl command with the `--insecure` flag.
+If you don't want to have CA as a trusted one you can use curl command with the `--insecure` flag or use `--cacert <path-to-ca>`.
