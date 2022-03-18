@@ -1,6 +1,6 @@
 # http_proxy
 
-This is a simple http_proxy server with minimal tls support.
+This is a simple MITM - http proxy server with minimal tls support.
 
 ## To start run:
 `./build.sh`
